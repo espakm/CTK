@@ -69,7 +69,7 @@ public:
 protected:
 
   ctkXnatObject();
-  ctkXnatObject(ctkXnatObjectPrivate& dd);
+  ctkXnatObject(ctkXnatObjectPrivate* d);
 
   virtual ctkXnatConnection* getConnection() const;
 

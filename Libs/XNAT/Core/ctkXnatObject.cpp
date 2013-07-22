@@ -124,8 +124,8 @@ ctkXnatObject::ctkXnatObject()
 {
 }
 
-ctkXnatObject::ctkXnatObject(ctkXnatObjectPrivate& d)
-: d_ptr(&d)
+ctkXnatObject::ctkXnatObject(ctkXnatObjectPrivate* d)
+: d_ptr(d)
 {
 }
 

@@ -51,7 +51,7 @@ public:
 };
 
 ctkXnatSubject::ctkXnatSubject()
-: ctkXnatObject(*new ctkXnatSubjectPrivate())
+: ctkXnatObject(new ctkXnatSubjectPrivate())
 {
 }
 

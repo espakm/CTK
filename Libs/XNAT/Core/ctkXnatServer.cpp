@@ -48,7 +48,7 @@ ctkXnatServerPrivate::~ctkXnatServerPrivate()
 }
 
 ctkXnatServer::ctkXnatServer(ctkXnatConnection* connection)
-: ctkXnatObject(*new ctkXnatServerPrivate(connection))
+: ctkXnatObject(new ctkXnatServerPrivate(connection))
 {
 }
 

@@ -48,7 +48,7 @@ public:
 };
 
 ctkXnatProject::ctkXnatProject()
-: ctkXnatObject(*new ctkXnatProjectPrivate())
+: ctkXnatObject(new ctkXnatProjectPrivate())
 {
 }
 
