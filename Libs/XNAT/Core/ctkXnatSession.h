@@ -182,6 +182,14 @@ public:
    */
   const QMap<QByteArray, QByteArray> httpHeadSync(const QUuid& uuid);
 
+  /// @brief Returns the persistent object with the given ID.
+  ctkXnatObject* get(const QString& id, const QString& schemaType);
+
+  /// @brief Returns the persistent object with the same ID as the given object.
+  ctkXnatObject* get(const ctkXnatObject* transientObject);
+
+  void clearCache();
+
   bool exists(const ctkXnatObject* object);
 
   void save(ctkXnatObject* object);

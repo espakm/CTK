@@ -211,14 +211,50 @@ QList<ctkXnatObject*> ctkXnatObject::children() const
 }
 
 //----------------------------------------------------------------------------
+ctkXnatObject* ctkXnatObject::child(const QString& id) const
+{
+  Q_D(const ctkXnatObject);
+
+  ctkXnatObject* foundChild = 0;
+
+  foreach (ctkXnatObject* child, d->children)
+  {
+    if (child->id() == id)
+    {
+      foundChild = child;
+      break;
+    }
+  }
+
+  return foundChild;
+}
+
+//----------------------------------------------------------------------------
 void ctkXnatObject::add(ctkXnatObject* child)
 {
   Q_D(ctkXnatObject);
+
+  if (!child)
+  {
+    return;
+  }
+
   if (child->parent() != this)
   {
     child->d_func()->parent = this;
   }
-  if (!d->children.contains(child))
+
+  bool found = false;
+  foreach (ctkXnatObject* other, d->children)
+  {
+    if (child == other || child->id() == other->id())
+    {
+      found = true;
+      break;
+    }
+  }
+
+  if (!found)
   {
     d->children.push_back(child);
   }

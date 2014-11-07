@@ -64,6 +64,8 @@ public:
 
   QMap<QString, QString> sessionProperties;
 
+  QMap<QString, ctkXnatObject*> cache;
+
   ctkXnatSession* q;
 
   ctkXnatSessionPrivate(const ctkXnatLoginProfile& loginProfile, ctkXnatSession* q);
@@ -485,9 +487,17 @@ QList<ctkXnatObject*> ctkXnatSession::httpResults(const QUuid& uuid, const QStri
   QScopedPointer<qRestResult> restResult(d->xnat->takeResult(uuid));
   if (restResult == NULL)
   {
-    d->throwXnatException("Http request failed.");
+    d->throwXnatException("HTTP request failed.");
   }
-  return d->results(restResult.data(), schemaType);
+
+  const QList<ctkXnatObject*>& results = d->results(restResult.data(), schemaType);
+
+  foreach (ctkXnatObject* result, results)
+  {
+    d->cache[result->id()] = result;
+  }
+
+  return results;
 }
 
 //----------------------------------------------------------------------------
@@ -511,14 +521,106 @@ QList<QVariantMap> ctkXnatSession::httpSync(const QUuid& uuid)
 }
 
 //----------------------------------------------------------------------------
+ctkXnatObject* ctkXnatSession::get(const QString& id, const QString& schemaType)
+{
+  Q_D(ctkXnatSession);
+
+  ctkXnatObject* persistentObject = d->cache[id];
+
+  if (!persistentObject)
+  {
+    int typeId = QMetaType::type(qPrintable(schemaType));
+
+    ctkXnatObject* transientObject = static_cast<ctkXnatObject*>(QMetaType::construct(typeId));
+    transientObject->setId(id);
+    transientObject->setSchemaType(schemaType);
+    persistentObject = this->get(transientObject);
+  }
+
+  return persistentObject;
+}
+
+//----------------------------------------------------------------------------
+ctkXnatObject* ctkXnatSession::get(const ctkXnatObject* transientObject)
+{
+  Q_D(ctkXnatSession);
+
+  ctkXnatObject* persistentObject = 0;
+
+  if (transientObject)
+  {
+    const QString& id = transientObject->id();
+    const QString& schemaType = transientObject->schemaType();
+
+    QString typeUri;
+
+    if (dynamic_cast<const ctkXnatProject*>(transientObject))
+    {
+      typeUri = "/data/archive/projects";
+    }
+    else if (dynamic_cast<const ctkXnatSubject*>(transientObject))
+    {
+      typeUri = "/data/archive/subjects";
+    }
+    else if (dynamic_cast<const ctkXnatExperiment*>(transientObject))
+    {
+      typeUri = "/data/archive/experiments";
+    }
+    else
+    {
+      ctkXnatObject* transientParent = transientObject->parent();
+      if (transientParent)
+      {
+        ctkXnatObject* persistentParent = this->get(transientParent);
+        //persistentParent->fetch();
+        persistentObject = persistentParent->child(id);
+      }
+    }
+
+    if (!typeUri.isNull())
+    {
+      qRestAPI::Parameters parameters;
+      parameters["ID"] = id;
+      parameters["xsiType"] = schemaType;
+      QUuid queryId = this->httpGet(typeUri, parameters);
+      QList<ctkXnatObject*> results = this->httpResults(queryId, schemaType);
+      if (!results.empty())
+      {
+        persistentObject = results[0];
+        d->cache[id] = persistentObject;
+      }
+    }
+  }
+
+  return persistentObject;
+}
+
+//----------------------------------------------------------------------------
+void ctkXnatSession::clearCache()
+{
+  Q_D(ctkXnatSession);
+
+  d->cache.clear();
+}
+
+//----------------------------------------------------------------------------
 bool ctkXnatSession::exists(const ctkXnatObject* object)
 {
   Q_D(ctkXnatSession);
 
-  QString query = object->resourceUri();
-  bool success = d->xnat->sync(d->xnat->get(query));
+  bool exists;
 
-  return success;
+  if (object->id().isEmpty())
+  {
+    exists = false;
+  }
+  else
+  {
+    QString query = object->resourceUri();
+    exists = d->xnat->sync(d->xnat->get(query));
+  }
+
+  return exists;
 }
 
 //----------------------------------------------------------------------------
@@ -556,7 +658,6 @@ void ctkXnatSession::save(ctkXnatObject* object)
     query.append(QString("&%1=%2").arg(itProperties.key(), itProperties.value()));
   }
 
-  qDebug() << "ctkXnatSession::save() query:" << query;
   QUuid queryId = d->xnat->put(query);
   qRestResult* result = d->xnat->takeResult(queryId);
 

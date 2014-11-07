@@ -102,6 +102,9 @@ public:
   /// Removes the object from the children of the current object and removes it from the XNAT server.
   void remove(ctkXnatObject* child);
 
+  /// Return the child with the given ID.
+  ctkXnatObject* child(const QString& id) const;
+
   /// Tells if the children and the properties of the objects have been fetched.
   bool isFetched() const;
 
@@ -166,6 +169,7 @@ protected:
 
 private:
 
+  friend class ctkXnatSession;
   friend class ctkXnatSessionPrivate;
 
   void setSchemaType(const QString& schemaType);
