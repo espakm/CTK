@@ -42,13 +42,13 @@ private slots:
 
   void init();
 
-  void cleanupTestCase();
-
   void cleanup();
 
-  void testParentChild();
+  void cleanupTestCase();
 
-  void testSession();
+  void testSessionOpened();
+
+  void testParentChild();
 
   void testAuthenticationError();
 
@@ -59,6 +59,14 @@ private slots:
   void testCreateProject();
 
   void testCreateSubject();
+
+  void testCache();
+
+  void testEraseSubject();
+
+  void testEraseProject();
+
+  void testCloseSession();
 
 private:
   QScopedPointer<ctkXnatSessionTestCasePrivate> d_ptr;

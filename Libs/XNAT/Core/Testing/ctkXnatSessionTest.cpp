@@ -45,9 +45,11 @@ public:
 
   ctkXnatLoginProfile LoginProfile;
 
-  QString Project;
-  QString Subject;
-  QString Experiment;
+  QString ProjectID;
+  ctkXnatProject* Project;
+
+  QString SubjectID;
+  ctkXnatSubject* Subject;
 
   QDateTime DateTime;
 };
@@ -72,27 +74,53 @@ void ctkXnatSessionTestCase::initTestCase()
   d->LoginProfile.setServerUrl(QString("https://central.xnat.org"));
   d->LoginProfile.setUserName("ctk");
   d->LoginProfile.setPassword("ctk-xnat");
-}
-
-void ctkXnatSessionTestCase::init()
-{
-  Q_D(ctkXnatSessionTestCase);
 
   d->DateTime = QDateTime::currentDateTime();
   d->Session = new ctkXnatSession(d->LoginProfile);
   d->Session->open();
 }
 
-void ctkXnatSessionTestCase::cleanupTestCase()
+void ctkXnatSessionTestCase::init()
 {
 }
 
 void ctkXnatSessionTestCase::cleanup()
 {
+}
+
+void ctkXnatSessionTestCase::cleanupTestCase()
+{
   Q_D(ctkXnatSessionTestCase);
 
   delete d->Session;
   d->Session = NULL;
+}
+
+void ctkXnatSessionTestCase::testSessionOpened()
+{
+  Q_D(ctkXnatSessionTestCase);
+
+  QVERIFY(d->Session->isOpen());
+  QDateTime expirationDate = d->Session->expirationDate();
+
+  QVERIFY(d->DateTime < expirationDate);
+
+  QTest::qSleep(2000);
+
+  QUuid uuid = d->Session->httpGet("/data/version");
+  QVERIFY(!uuid.isNull());
+  d->Session->httpSync(uuid);
+
+  QVERIFY(expirationDate < d->Session->expirationDate());
+
+  try
+  {
+    d->Session->httpSync(uuid);
+    QFAIL("Exception for unknown uuid expected");
+  }
+  catch(const ctkInvalidArgumentException&)
+  {
+  }
 }
 
 void ctkXnatSessionTestCase::testProjectList()
@@ -153,41 +181,6 @@ void ctkXnatSessionTestCase::testParentChild()
   delete project;
 }
 
-void ctkXnatSessionTestCase::testSession()
-{
-  Q_D(ctkXnatSessionTestCase);
-
-  QVERIFY(d->Session->isOpen());
-  QDateTime expirationDate = d->Session->expirationDate();
-
-  QVERIFY(d->DateTime < expirationDate);
-
-  QTest::qSleep(2000);
-
-  QUuid uuid = d->Session->httpGet("/data/version");
-  QVERIFY(!uuid.isNull());
-  d->Session->httpSync(uuid);
-
-  QVERIFY(expirationDate < d->Session->expirationDate());
-
-  try
-  {
-    d->Session->httpSync(uuid);
-    QFAIL("Exception for unknown uuid expected");
-  }
-  catch(const ctkInvalidArgumentException&)
-  {}
-
-  d->Session->close();
-  try
-  {
-    d->Session->dataModel();
-    QFAIL("Exception for closed session expected");
-  }
-  catch(const ctkXnatInvalidSessionException&)
-  {}
-}
-
 void ctkXnatSessionTestCase::testAuthenticationError()
 {
   ctkXnatLoginProfile loginProfile;
@@ -213,7 +206,7 @@ void ctkXnatSessionTestCase::testCreateProject()
   ctkXnatDataModel* dataModel = d->Session->dataModel();
 
   QString projectId = QString("CTK_") + QUuid::createUuid().toString().mid(1, 8);
-  d->Project = projectId;
+  d->ProjectID = projectId;
 
   ctkXnatProject* project = new ctkXnatProject(dataModel);
   project->setId(projectId);
@@ -228,49 +221,74 @@ void ctkXnatSessionTestCase::testCreateProject()
   exists = d->Session->exists(project);
   QVERIFY(exists);
 
-  d->Session->remove(project);
-
-  exists = d->Session->exists(project);
-  QVERIFY(!exists);
+  d->Project = project;
 }
 
 void ctkXnatSessionTestCase::testCreateSubject()
 {
   Q_D(ctkXnatSessionTestCase);
 
-  ctkXnatDataModel* dataModel = d->Session->dataModel();
-
-  QString projectId = QString("CTK_") + QUuid::createUuid().toString().mid(1, 8);
-  d->Project = projectId;
-
-  ctkXnatProject* project = new ctkXnatProject(dataModel);
-  project->setId(projectId);
-  project->setName(projectId);
-  project->setDescription("CTK_test_project");
-
-  QVERIFY(!project->exists());
-
-  project->save();
-
-  QVERIFY(project->exists());
-
-  ctkXnatSubject* subject = new ctkXnatSubject(project);
+  ctkXnatSubject* subject = new ctkXnatSubject(d->Project);
 
   QString subjectName = QString("CTK_S") + QUuid::createUuid().toString().mid(1, 8);
   subject->setId(subjectName);
   subject->setName(subjectName);
 
-  subject->save();
-
-  QVERIFY(!subject->id().isNull());
-
-  subject->erase();
-
   QVERIFY(!subject->exists());
 
-  project->erase();
+  subject->save();
 
-  QVERIFY(!project->exists());
+  QVERIFY(subject->exists());
+
+  d->Subject = subject;
+}
+
+void ctkXnatSessionTestCase::testCache()
+{
+  Q_D(ctkXnatSessionTestCase);
+
+  ctkXnatProject* transientProject = new ctkXnatProject();
+  transientProject->setId(d->ProjectID);
+  ctkXnatObject* persistentProject = d->Session->get(transientProject);
+  QVERIFY(persistentProject);
+  qWarning() << "project description: " << persistentProject->description();
+
+//  ctkXnatObject* project = d->Session->get(d->ProjectID);
+}
+
+void ctkXnatSessionTestCase::testEraseSubject()
+{
+  Q_D(ctkXnatSessionTestCase);
+
+  d->Subject->erase();
+
+  QVERIFY(!d->Subject->exists());
+}
+
+void ctkXnatSessionTestCase::testEraseProject()
+{
+  Q_D(ctkXnatSessionTestCase);
+
+  d->Session->remove(d->Project);
+
+  QVERIFY(!d->Session->exists(d->Project));
+}
+
+void ctkXnatSessionTestCase::testCloseSession()
+{
+  Q_D(ctkXnatSessionTestCase);
+
+  QVERIFY(d->Session->isOpen());
+
+  d->Session->close();
+  try
+  {
+    d->Session->dataModel();
+    QFAIL("Exception for closed session expected");
+  }
+  catch(const ctkXnatInvalidSessionException&)
+  {
+  }
 }
 
 // --------------------------------------------------------------------------
