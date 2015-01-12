@@ -44,6 +44,16 @@ public:
 
   virtual QString resourceUri() const;
 
+  void setFileFormat(const QString& fileFormat);
+  QString fileFormat() const;
+
+  void setFileTags(const QString& fileTags);
+  QString fileTags() const;
+
+  void setFileContent(const QString& fileContent);
+  QString fileContent() const;
+
+  void download(const QString& filename);
   void upload(const QString& filename);
 
   void reset();
