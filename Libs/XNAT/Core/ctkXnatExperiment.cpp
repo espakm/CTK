@@ -143,7 +143,6 @@ void ctkXnatExperiment::fetchImpl()
   }
 
   this->fetchResources();
-
 }
 
 //----------------------------------------------------------------------------
