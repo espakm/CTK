@@ -73,7 +73,7 @@ QString ctkXnatProject::childDataType() const
 }
 
 //----------------------------------------------------------------------------
-const QString& ctkXnatProject::secondaryId() const
+const QString ctkXnatProject::secondaryId() const
 {
   return this->property(ctkXnatObjectFields::SECONDARY_ID);
 }
@@ -85,7 +85,7 @@ void ctkXnatProject::setSecondaryId(const QString& secondaryId)
 }
 
 //----------------------------------------------------------------------------
-const QString& ctkXnatProject::piFirstName() const
+const QString ctkXnatProject::piFirstName() const
 {
   return this->property(ctkXnatObjectFields::PI_FIRSTNAME);
 }
@@ -97,7 +97,7 @@ void ctkXnatProject::setPiFirstName(const QString& piFirstName)
 }
 
 //----------------------------------------------------------------------------
-const QString& ctkXnatProject::piLastName() const
+const QString ctkXnatProject::piLastName() const
 {
   return this->property(ctkXnatObjectFields::PI_LASTNAME);
 }
