@@ -19,59 +19,42 @@
 
 =============================================================================*/
 
-#ifndef ctkctkXnatProject_h
-#define ctkctkXnatProject_h
+#ifndef ctkXnatResourceFolder_h
+#define ctkXnatResourceFolder_h
 
 #include "ctkXNATCoreExport.h"
 
 #include "ctkXnatObject.h"
-#include "ctkXnatDefaultSchemaTypes.h"
 
-class ctkXnatDataModel;
-class ctkXnatProjectPrivate;
+class ctkXnatResourceFolderPrivate;
 
 /**
  * @ingroup XNAT_Core
  */
-class CTK_XNAT_CORE_EXPORT ctkXnatProject : public ctkXnatObject
+class CTK_XNAT_CORE_EXPORT ctkXnatResourceFolder : public ctkXnatObject
 {
 
 public:
 
-  ctkXnatProject(ctkXnatObject* parent = 0, const QString& schemaType = ctkXnatDefaultSchemaTypes::XSI_PROJECT);
+  ctkXnatResourceFolder(ctkXnatObject* parent = NULL);
 
-  virtual ~ctkXnatProject();
+  virtual ~ctkXnatResourceFolder();
 
   virtual QString resourceUri() const;
 
-  virtual QString childDataType() const;
-
-  const QString secondaryId() const;
-  void setSecondaryId(const QString& secondaryId);
-
-  const QString piFirstName() const;
-  void setPiFirstName(const QString& piFirstName);
-
-  const QString piLastName() const;
-  void setPiLastName(const QString& piLastName);
-
-  QString projectDescription() const;
-  void setProjectDescription(const QString &description);
+  virtual QString name() const;
+  virtual QString label()const;
 
   void reset();
 
-  static const QString SECONDARY_ID;
-  static const QString DESCRIPTION;
-  static const QString PI_FIRSTNAME;
-  static const QString PI_LASTNAME;
-
 private:
 
+  friend class qRestResult;
   virtual void fetchImpl();
-
   virtual void downloadImpl(const QString&);
+  virtual void saveImpl(bool overwrite);
 
-  Q_DECLARE_PRIVATE(ctkXnatProject)
+  Q_DECLARE_PRIVATE(ctkXnatResourceFolder)
 };
 
 #endif

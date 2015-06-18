@@ -23,14 +23,21 @@
 #include "ctkXnatObjectPrivate.h"
 
 #include "ctkXnatDataModel.h"
-#include "ctkXnatSession.h"
 #include "ctkXnatDefaultSchemaTypes.h"
+#include "ctkXnatException.h"
+#include "ctkXnatResource.h"
+#include "ctkXnatResourceFolder.h"
+#include "ctkXnatSession.h"
 
 #include <QDateTime>
 #include <QDebug>
 #include <QStringList>
 #include <QVariant>
 
+
+const QString ctkXnatObject::ID = "ID";
+const QString ctkXnatObject::NAME = "name";
+const QString ctkXnatObject::LABEL = "label";
 
 //----------------------------------------------------------------------------
 ctkXnatObject::ctkXnatObject(const ctkXnatObject&)
@@ -67,37 +74,39 @@ ctkXnatObject::~ctkXnatObject()
 //----------------------------------------------------------------------------
 QString ctkXnatObject::id() const
 {
-  return property("ID");
+  return this->property(ID);
 }
 
 //----------------------------------------------------------------------------
 void ctkXnatObject::setId(const QString& id)
 {
-  setProperty("ID", id);
+  this->setProperty(ID, id);
 }
 
 //----------------------------------------------------------------------------
 QString ctkXnatObject::name() const
 {
-  return property("name");
+  return this->property(NAME);
 }
 
 //----------------------------------------------------------------------------
 void ctkXnatObject::setName(const QString& name)
 {
-  setProperty("name", name);
+  this->setProperty(NAME, name);
 }
 
 //----------------------------------------------------------------------------
 QString ctkXnatObject::description() const
 {
-  return property("description");
+  Q_D(const ctkXnatObject);
+  return d->description;
 }
 
 //----------------------------------------------------------------------------
 void ctkXnatObject::setDescription(const QString& description)
 {
-  setProperty("description", description);
+  Q_D(ctkXnatObject);
+  d->description = description;
 }
 
 //----------------------------------------------------------------------------
@@ -106,7 +115,7 @@ QString ctkXnatObject::childDataType() const
   return "Resources";
 }
 
-QDateTime ctkXnatObject::lastModifiedTime()
+QDateTime ctkXnatObject::lastModifiedTimeOnServer()
 {
   Q_D(ctkXnatObject);
   QUuid queryId = this->session()->httpHead(this->resourceUri());
@@ -138,9 +147,6 @@ QDateTime ctkXnatObject::lastModifiedTime()
         break;
     }
   }
-
-  if (lastModifiedTime.isValid() && d->lastModifiedTime < lastModifiedTime)
-    this->setLastModifiedTime(lastModifiedTime);
   return lastModifiedTime;
 }
 
@@ -169,7 +175,10 @@ QString ctkXnatObject::property(const QString& name) const
 void ctkXnatObject::setProperty(const QString& name, const QVariant& value)
 {
   Q_D(ctkXnatObject);
-  d->properties.insert(name, value.toString());
+  if (d->properties[name] != value)
+  {
+    d->properties.insert(name, value.toString());
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -218,13 +227,20 @@ void ctkXnatObject::add(ctkXnatObject* child)
   {
     child->d_func()->parent = this;
   }
-  if (!d->children.contains(child))
+
+  bool childExists (false);
+  foreach (ctkXnatObject* existingChild, d->children)
+  {
+    if ((existingChild->id().length() != 0 && existingChild->id() == child->id()) ||
+        (existingChild->id().length() == 0 && existingChild->name() == child->name()))
+    {
+      d->children.replace(d->children.indexOf(existingChild), child);
+      childExists = true;
+    }
+  }
+  if (!childExists)
   {
     d->children.push_back(child);
-  }
-  else
-  {
-    qWarning() << "ctkXnatObject::add(): Child already exists";
   }
 }
 
@@ -261,6 +277,12 @@ QString ctkXnatObject::schemaType() const
 }
 
 //----------------------------------------------------------------------------
+void ctkXnatObject::setSchemaType(const QString& schemaType)
+{
+  this->setProperty("xsiType", schemaType);
+}
+
+//----------------------------------------------------------------------------
 void ctkXnatObject::fetch()
 {
   Q_D(ctkXnatObject);
@@ -284,19 +306,57 @@ ctkXnatSession* ctkXnatObject::session() const
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatObject::setSchemaType(const QString& schemaType)
+void ctkXnatObject::download(const QString& filename)
 {
-  this->setProperty("xsiType", schemaType);
+  this->downloadImpl(filename);
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatObject::download(const QString& /*zipFilename*/)
+void ctkXnatObject::save(bool overwrite)
 {
+  Q_D(ctkXnatObject);
+  this->saveImpl(overwrite);
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatObject::upload(const QString& /*zipFilename*/)
+ctkXnatResource* ctkXnatObject::addResourceFolder(QString foldername, QString format,
+                                   QString content, QString tags)
 {
+  if (foldername.size() == 0)
+  {
+    throw ctkXnatException("Error creating resource! Foldername must not be empty!");
+  }
+
+  ctkXnatResourceFolder* resFolder = 0;
+  QList<ctkXnatObject*> children = this->children();
+  for (unsigned int i = 0; i < children.size(); ++i)
+  {
+    resFolder = dynamic_cast<ctkXnatResourceFolder*>(children.at(i));
+    if (resFolder)
+    {
+      break;
+    }
+  }
+
+  if (!resFolder)
+  {
+    resFolder = new ctkXnatResourceFolder();
+    this->add(resFolder);
+  }
+
+  ctkXnatResource* resource = new ctkXnatResource();
+  resource->setName(foldername);
+  if (format.size() != 0)
+    resource->setFormat(format);
+  if (content.size() != 0)
+    resource->setContent(content);
+  if (tags.size() != 0)
+    resource->setTags(tags);
+
+  resFolder->add(resource);
+  resource->save();
+
+  return resource;
 }
 
 //----------------------------------------------------------------------------
@@ -306,32 +366,64 @@ bool ctkXnatObject::exists() const
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatObject::save()
+void ctkXnatObject::saveImpl(bool /*overwrite*/)
 {
-  this->session()->save(this);
+  Q_D(ctkXnatObject);
+  ctkXnatSession::UrlParameters urlParams;
+  urlParams["xsi:type"] = this->schemaType();
+
+  // Just do this if there is already a valid last-modification-time,
+  // otherwise the object is not yet on the server!
+  QDateTime remoteModTime;
+  if (d->lastModifiedTime.isValid())
+  {
+    // TODO Overwrite this for e.g. project and subject which already support modification time!
+    remoteModTime = this->lastModifiedTimeOnServer();
+    // If the object has been modified on the server, perform an update
+    if (d->lastModifiedTime < remoteModTime)
+    {
+      qWarning()<<"Uploaded object maybe overwritten on server!";
+      // TODO update from server, since modification time is not really supported
+      // by xnat right now this is not of high priority
+      // something like this->updateImpl + setLastModifiedTime()
+    }
+  }
+
+  const QMap<QString, QString>& properties = this->properties();
+  QMapIterator<QString, QString> itProperties(properties);
+  while (itProperties.hasNext())
+  {
+    itProperties.next();
+    if (itProperties.key() == "ID")
+      continue;
+
+    urlParams[itProperties.key()] = itProperties.value();
+  }
+
+  // Execute the update
+  QUuid queryID = this->session()->httpPut(this->resourceUri(), urlParams);
+  const QList<QVariantMap> results = this->session()->httpSync(queryID);
+
+  // If this xnat object did not exist before on the server set the ID returned by Xnat
+  if (results.size() == 1 && results[0].size() == 1)
+  {
+    QVariant id = results[0][ID];
+    if (!id.isNull())
+    {
+      this->setId(id.toString());
+    }
+  }
+
+  // Finally update the modification time on the server
+  remoteModTime = this->lastModifiedTimeOnServer();
+  d->lastModifiedTime = remoteModTime;
 }
 
 //----------------------------------------------------------------------------
 void ctkXnatObject::fetchResources(const QString& path)
 {
-  QString query = this->resourceUri() + path;
-  ctkXnatSession* const session = this->session();
-  QUuid queryId = session->httpGet(query);
-
-  QList<ctkXnatObject*> resources = session->httpResults(queryId,
-                                                           ctkXnatDefaultSchemaTypes::XSI_RESOURCE);
-
-  foreach (ctkXnatObject* resource, resources)
-  {
-    QString label = resource->property("label");
-    if (label.isEmpty())
-    {
-      label = "NO NAME";
-    }
-
-    resource->setProperty("label", label);
-    this->add(resource);
-  }
+  ctkXnatResourceFolder* resFolder = new ctkXnatResourceFolder();
+  this->add(resFolder);
 }
 
 //----------------------------------------------------------------------------

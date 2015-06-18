@@ -19,107 +19,102 @@
 
 =============================================================================*/
 
-#include "ctkXnatScan.h"
+#include "ctkXnatResourceFolder.h"
 
 #include "ctkXnatDefaultSchemaTypes.h"
-#include "ctkXnatObject.h"
 #include "ctkXnatObjectPrivate.h"
-#include "ctkXnatScanFolder.h"
+#include "ctkXnatResource.h"
 #include "ctkXnatSession.h"
 
-const QString ctkXnatScan::QUALITY = "quality";
-const QString ctkXnatScan::SERIES_DESCRIPTION = "series_description";
-const QString ctkXnatScan::TYPE = "type";
-
 //----------------------------------------------------------------------------
-class ctkXnatScanPrivate : public ctkXnatObjectPrivate
+class ctkXnatResourceFolderPrivate : public ctkXnatObjectPrivate
 {
 public:
 
-  ctkXnatScanPrivate()
+  ctkXnatResourceFolderPrivate()
   : ctkXnatObjectPrivate()
   {
   }
 
   void reset()
   {
-    uri.clear();
   }
 
-  QString uri;
 };
 
 
 //----------------------------------------------------------------------------
-ctkXnatScan::ctkXnatScan(ctkXnatObject* parent, const QString& schemaType)
-: ctkXnatObject(*new ctkXnatScanPrivate(), parent, schemaType)
+ctkXnatResourceFolder::ctkXnatResourceFolder(ctkXnatObject* parent)
+  : ctkXnatObject(*new ctkXnatResourceFolderPrivate(), parent, QString::null)
+{
+  this->setId("resources");
+  this->setProperty(LABEL, "Resources");
+}
+
+//----------------------------------------------------------------------------
+ctkXnatResourceFolder::~ctkXnatResourceFolder()
 {
 }
 
 //----------------------------------------------------------------------------
-ctkXnatScan::~ctkXnatScan()
-{
-}
-
-//----------------------------------------------------------------------------
-void ctkXnatScan::setQuality(const QString &quality)
-{
-  this->setProperty(QUALITY, quality);
-}
-
-//----------------------------------------------------------------------------
-QString ctkXnatScan::quality() const
-{
-  return this->property(QUALITY);
-}
-
-//----------------------------------------------------------------------------
-void ctkXnatScan::setSeriesDescription(const QString &seriesDescription)
-{
-  this->setProperty(SERIES_DESCRIPTION, seriesDescription);
-}
-
-//----------------------------------------------------------------------------
-QString ctkXnatScan::seriesDescription() const
-{
-  return this->property(SERIES_DESCRIPTION);
-}
-
-//----------------------------------------------------------------------------
-void ctkXnatScan::setType(const QString &type)
-{
-  this->setProperty(TYPE, type);
-}
-
-//----------------------------------------------------------------------------
-QString ctkXnatScan::type() const
-{
-  return this->property(TYPE);
-}
-
-//----------------------------------------------------------------------------
-QString ctkXnatScan::resourceUri() const
+QString ctkXnatResourceFolder::resourceUri() const
 {
   return QString("%1/%2").arg(parent()->resourceUri(), this->id());
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatScan::reset()
+QString ctkXnatResourceFolder::name() const
+{
+  return this->label();
+}
+
+//----------------------------------------------------------------------------
+QString ctkXnatResourceFolder::label() const
+{
+  return this->property(LABEL);
+}
+
+//----------------------------------------------------------------------------
+void ctkXnatResourceFolder::reset()
 {
   ctkXnatObject::reset();
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatScan::fetchImpl()
+void ctkXnatResourceFolder::fetchImpl()
 {
-  this->fetchResources();
+  QString query = this->resourceUri();
+  ctkXnatSession* const session = this->session();
+  QUuid queryId = session->httpGet(query);
+
+  QList<ctkXnatObject*> resources = session->httpResults(queryId,
+                                                           ctkXnatDefaultSchemaTypes::XSI_RESOURCE);
+
+  foreach (ctkXnatObject* resource, resources)
+  {
+    QString label = resource->name();
+    if (label.isEmpty())
+    {
+      label = "NO NAME";
+    }
+
+    resource->setName(label);
+    this->add(resource);
+  }
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatScan::downloadImpl(const QString& filename)
+void ctkXnatResourceFolder::downloadImpl(const QString& filename)
 {
-  QString query = this->resourceUri() + "/files";
+  QString query = this->resourceUri() + "/ALL/files";
   ctkXnatSession::UrlParameters parameters;
   parameters["format"] = "zip";
   this->session()->download(filename, query, parameters);
+}
+
+//----------------------------------------------------------------------------
+void ctkXnatResourceFolder::saveImpl(bool /*overwrite*/)
+{
+  // Not implemented since a resource folder is automatically created when
+  // a resource is uploaded
 }

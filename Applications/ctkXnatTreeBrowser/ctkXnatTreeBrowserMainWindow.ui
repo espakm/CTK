@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>377</width>
+    <width>553</width>
     <height>325</height>
    </rect>
   </property>
@@ -21,6 +21,29 @@
        <widget class="QPushButton" name="loginButton">
         <property name="text">
          <string>Login</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="addResourceButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string>Creates a new resource folder</string>
+        </property>
+        <property name="text">
+         <string>Add Resource</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="uploadFileButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Upload File</string>
         </property>
        </widget>
       </item>
@@ -72,7 +95,7 @@
 font: 75 10pt &quot;Lucida Grande&quot;;</string>
         </property>
         <property name="text">
-         <string>Select a xnat file to download...</string>
+         <string>Select a xnat file, resource, scan, or scan folder to download...</string>
         </property>
        </widget>
       </item>
@@ -85,7 +108,7 @@ font: 75 10pt &quot;Lucida Grande&quot;;</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>377</width>
+     <width>553</width>
      <height>22</height>
     </rect>
    </property>
