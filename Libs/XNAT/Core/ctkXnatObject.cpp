@@ -296,12 +296,6 @@ ctkXnatSession* ctkXnatObject::session() const
 }
 
 //----------------------------------------------------------------------------
-void ctkXnatObject::setSchemaType(const QString& schemaType)
-{
-  this->setProperty("xsiType", schemaType);
-}
-
-//----------------------------------------------------------------------------
 void ctkXnatObject::download(const QString& filename)
 {
   this->downloadImpl(filename);
